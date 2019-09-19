@@ -1,0 +1,54 @@
+version: '3.4'
+
+services:
+
+  postgres:
+    restart: always
+    image: postgres:10-alpine
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_DB: forum
+    ports:
+      - "25432:5432"
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+
+  forum_api:
+    build: .
+    environment:
+      FLASK_APP: forum.app:app
+      SQLALCHEMY_DATABASE_URI: 'postgresql://admin@db/forum'
+      SECRET_KEY: '900853355e9204cac6666cabde9af011ce674b2a5cc143e0a6b387b23271fb49'
+    volumes:
+      - ./forum:/app/forum
+      - ./data:/app/data
+      - ./migrations:/app/migrations
+    ports:
+      - "5000:5000"
+    depends_on:
+      - postgres
+    links:
+      - postgres:db
+    command: gunicorn -b 0.0.0.0:5000 forum.app:app --reload --log-level=info --timeout 300
+
+  postgres_test:
+    restart: always
+    image: postgres:latest
+    environment:
+      POSTGRES_USER: test
+      POSTGRES_DB: test_db
+
+  test:
+    build: .
+    environment:
+      TESTING: 'True'
+      FLASK_APP: forum.app:app
+      SQLALCHEMY_DATABASE_URI: 'postgresql://test@db/test_db'
+    volumes:
+      - ./forum:/app/forum
+      - ./test:/app/test
+    command: 'pytest --cov=forum'
+    depends_on:
+      - postgres_test
+    links:
+      - postgres_test:db
